@@ -76,7 +76,7 @@ class CommandsCfg:
         debug_vis=True,
         class_type = MoBCommand,
         # rel_standing_envs=0.02,
-        rel_heading_envs=1.0,
+        # rel_heading_envs=1.0,
         ranges=mdp.MoBCommandCfg.Ranges(
             lin_vel_x=(-0.6, 0.6),
             lin_vel_y=(-0.6, 0.6),
@@ -296,13 +296,14 @@ class RewardsCfg:
 
     no_fly = RewTerm(
         func=mdp.no_fly,
-        weight=0.25,
+        weight=-0.25,
             params={
             "command_name": "base_velocity",
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle.*"),
             "threshold": 0.1,
         }    
     ) # 
+
     joint_pos_limit = RewTerm(func=mdp.joint_pos_limits,weight=-10.0) #
     # joint_vel_limit = RewTerm(func=mdp.joint_vel_limits, weight=-2) #
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.001) # 
@@ -393,7 +394,7 @@ class RewardsCfg:
         weight=2.0,
         params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle.*"),
-            "gait_force_sigma": 100.0,
+            "gait_force_sigma": 50.0,
         }
     ) #
 
@@ -402,7 +403,7 @@ class RewardsCfg:
         func=mdp.tracking_contacts_shaped_vel,
         weight=4.0,
         params={
-            "gait_vel_sigma": 10.0,
+            "gait_vel_sigma": 5.0,
             "asset_cfg": SceneEntityCfg("robot", body_names=".*ankle.*")
         }
     ) #
@@ -546,10 +547,6 @@ class Unitreeg1EnvCfg_PLAY(Unitreeg1EnvCfg):
         #     self.scene.terrain.terrain_generator.num_cols = 5
         #     self.scene.terrain.terrain_generator.curriculum = False
 
-        self.commands.base_velocity.ranges.lin_vel_x = (1.0, 1.0)
-        self.commands.base_velocity.ranges.lin_vel_y = (0.0, 0.0)
-        self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
-        self.commands.base_velocity.ranges.heading = (0.0, 0.0)
         # disable randomization for play
         self.observations.policy.enable_corruption = False
         # remove random pushing

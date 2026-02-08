@@ -147,12 +147,12 @@ def main():
     # export policy to onnx/jit
     export_model_dir = os.path.join(os.path.dirname(resume_path), "exported")
     # export_policy_as_jit(policy_nn, ppo_runner.obs_normalizer, path=export_model_dir, filename="policy.pt")
-    export_policy_as_onnx(
-        policy_nn, normalizer=ppo_runner.obs_normalizer, path=export_model_dir, filename="policy.onnx"
-    )
+    # export_policy_as_onnx(
+    #     policy_nn, normalizer=ppo_runner.obs_normalizer, path=export_model_dir, filename="policy.onnx"
+    # )
 
     dt = env.unwrapped.step_dt
-
+    command_name = "base_velocity"
     # reset environment
     obs, _ = env.get_observations()
     timestep = 0
@@ -161,10 +161,22 @@ def main():
         start_time = time.time()
         # run everything in inference mode
         with torch.inference_mode():
+
+            env.env.env.command_manager.get_command(command_name)[:, 0] = 1.0 # lin_x
+            env.env.env.command_manager.get_command(command_name)[:, 1] = 0 # lin_y 
+            env.env.env.command_manager.get_command(command_name)[:, 2] = 0 # ang z 
+            env.env.env.command_manager.get_command(command_name)[:, 3] = 1.5 # frequency 
+            env.env.env.command_manager.get_command(command_name)[:, 4] = 0.5 # phase 
+            env.env.env.command_manager.get_command(command_name)[:, 5] = 0.5 # duration
+            env.env.env.command_manager.get_command(command_name)[:, 6] = 0.3 # foot swing 
+            env.env.env.command_manager.get_command(command_name)[:, 7] = -0.0 # body height 
+            env.env.env.command_manager.get_command(command_name)[:, 8] = 0.2 # body pitch 
+            env.env.env.command_manager.get_command(command_name)[:, 9] = 0.0 # waist rool
+
             # agent stepping
             actions = policy(obs)
             # env stepping
-            obs, _, _, _ = env.step(actions)
+            obs, _, _, _, _, _ ,_  = env.step(actions)
         if args_cli.video:
             timestep += 1
             # Exit the play loop after recording one video

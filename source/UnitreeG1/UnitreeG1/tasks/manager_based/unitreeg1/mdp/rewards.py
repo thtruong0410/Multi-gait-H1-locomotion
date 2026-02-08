@@ -316,7 +316,7 @@ def foot_clearance_cmd_linear(
     foot = env.command_manager.get_foot_indices.to(device)
     phases = 1 - torch.abs(1.0 - torch.clip((torch.tensor(foot, dtype=torch.float32, device=device) * 2.0) - 1.0,0.0, 1.0) * 2.0)
     foot_height = (asset.data.body_pos_w[:, asset_cfg.body_ids, 2]).view(env.num_envs, -1)  # (num_envs, num_feet)
-    base_clearance = env.command_manager.get_command(command_name)[:, 6].unsqueeze(1) * phases # + 0.07
+    base_clearance = env.command_manager.get_command(command_name)[:, 6].unsqueeze(1) * phases + 0.07
     if sensor_cfg is not None:
         sensor: RayCaster = env.scene[sensor_cfg.name]
         terrain_height = torch.mean(sensor.data.ray_hits_w[..., 2], dim=1).unsqueeze(1)
@@ -326,8 +326,12 @@ def foot_clearance_cmd_linear(
         target_height = base_clearance
     # contact state cũng cần đưa về device
     desired_contacts = env.command_manager.get_desired_contact_states.to(device)
-    rew_foot_clearance = torch.square(torch.relu(target_height - foot_height)) * (1 - desired_contacts)
+    # print("desired_contacts: ", desired_contacts[0])
+    diff = torch.relu(target_height - foot_height)
+    # print("foot height diff: ",  diff[0])
 
+    rew_foot_clearance = torch.square(diff) * (1 - desired_contacts)
+    # print("rew_foot_clearance: ", rew_foot_clearance[0])
     return torch.sum(rew_foot_clearance, dim=1).clip(max=0.1)
 
 def orientation_control(
@@ -412,6 +416,53 @@ def no_fly(
 
     return same_contact.float() + single_contact.float()  # (N,)
 
+# def no_fly_same_contact(
+#     env: ManagerBasedRLEnv,
+#     command_name: str,
+#     sensor_cfg: SceneEntityCfg,
+#     threshold: float = 0.1,
+# ) -> torch.Tensor:
+#     cmd = env.command_manager.get_command(command_name)
+
+#     zero_cmd_mask = (torch.norm(cmd[:, :2], dim=1) < 0.1) & (torch.abs(cmd[:, 2]) < 0.1)
+#     walking_mask = cmd[:, 4] == 0.5
+
+#     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+#     contacts = contact_sensor.data.net_forces_w[:, sensor_cfg.body_ids, 2] > threshold
+#     n_contacts = contacts.float().sum(dim=1)
+
+#     same_contact = (n_contacts == 0) | (n_contacts == 2)
+
+#     # disable in walking + when cmd ~ 0
+#     same_contact[walking_mask] = False
+#     same_contact[zero_cmd_mask] = False
+
+#     return same_contact.float()
+
+
+# def no_fly_single_contact(
+#     env: ManagerBasedRLEnv,
+#     command_name: str,
+#     sensor_cfg: SceneEntityCfg,
+#     threshold: float = 0.1,
+# ) -> torch.Tensor:
+#     cmd = env.command_manager.get_command(command_name)
+
+#     zero_cmd_mask = (torch.norm(cmd[:, :2], dim=1) < 0.1) & (torch.abs(cmd[:, 2]) < 0.1)
+#     hopping_mask = cmd[:, 4] == 0.0
+
+#     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+#     contacts = contact_sensor.data.net_forces_w[:, sensor_cfg.body_ids, 2] > threshold
+#     n_contacts = contacts.float().sum(dim=1)
+
+#     single_contact = n_contacts == 1
+
+#     # disable in hopping + when cmd ~ 0
+#     single_contact[hopping_mask] = False
+#     single_contact[zero_cmd_mask] = False
+
+#     return single_contact.float()
+    
 def hopping_symmetry(
     env: ManagerBasedRLEnv,
     command_name: str = "base_velocity",

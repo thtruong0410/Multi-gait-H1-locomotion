@@ -25,7 +25,7 @@ gym.register(
 
 gym.register(
     id="Template-Unitreeg1-v0-Play",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point=f"{custom_manager.__name__}.cus_manager_based_RL_env:CusManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.unitreeg1_env_cfg:Unitreeg1EnvCfg_PLAY",
