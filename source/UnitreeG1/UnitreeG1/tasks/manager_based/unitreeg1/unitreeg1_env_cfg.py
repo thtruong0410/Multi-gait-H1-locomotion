@@ -75,15 +75,15 @@ class CommandsCfg:
         resampling_time_range=(10.0, 10.0),
         debug_vis=True,
         class_type = MoBCommand,
-        rel_standing_envs=0.02,
+        # rel_standing_envs=0.02,
         rel_heading_envs=1.0,
         ranges=mdp.MoBCommandCfg.Ranges(
-            lin_vel_x=(-0.3, 0.3),
-            lin_vel_y=(-0.3, 0.3),
-            ang_vel_z=(-0.3, 0.3),
+            lin_vel_x=(-0.6, 0.6),
+            lin_vel_y=(-0.6, 0.6),
+            ang_vel_z=(-0.6, 0.6),
             gait_frequency=(1.5, 3.5),
             foot_swing_height=(0.1, 0.35),
-            body_height=(-0.1, 0.0),
+            body_height=(-0.2, 0.0),
             body_pitch=(0.0, 0.2),
             waist_roll=(-0.0, 0.0),
             heading=(-math.pi, math.pi),
@@ -300,12 +300,12 @@ class RewardsCfg:
             params={
             "command_name": "base_velocity",
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle.*"),
-            "threshold": 1,
+            "threshold": 0.1,
         }    
     ) # 
     joint_pos_limit = RewTerm(func=mdp.joint_pos_limits,weight=-10.0) #
     # joint_vel_limit = RewTerm(func=mdp.joint_vel_limits, weight=-2) #
-    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.01) # 
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.001) # 
 
     # -- robot
     # flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-5.0)
@@ -370,7 +370,7 @@ class RewardsCfg:
 
     waist_control = RewTerm(
         func=mdp.waist_control,
-        weight = -2.0,
+        weight = -0.0, # -2 
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names="torso_link"),
             "command_name": "base_velocity",
@@ -393,7 +393,7 @@ class RewardsCfg:
         weight=2.0,
         params={
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle.*"),
-            "gait_force_sigma": 50.0,
+            "gait_force_sigma": 100.0,
         }
     ) #
 
@@ -402,7 +402,7 @@ class RewardsCfg:
         func=mdp.tracking_contacts_shaped_vel,
         weight=4.0,
         params={
-            "gait_vel_sigma": 5.0,
+            "gait_vel_sigma": 10.0,
             "asset_cfg": SceneEntityCfg("robot", body_names=".*ankle.*")
         }
     ) #
@@ -455,7 +455,7 @@ class TerminationsCfg:
     """Termination terms for the MDP."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
-    base_height = DoneTerm(func=mdp.root_height_below_minimum, params={"minimum_height": 0.2})
+    # base_height = DoneTerm(func=mdp.root_height_below_minimum, params={"minimum_height": 0.2})
     bad_orientation = DoneTerm(func=mdp.bad_orientation, params={"limit_angle": 0.8})
 
 ##
@@ -524,11 +524,6 @@ class Unitreeg1EnvCfg(ManagerBasedRLEnvCfg):
         # self.rewards.lin_vel_z_l2.weight = 0.0
         # self.rewards.undesired_contacts = None
         # self.rewards.flat_orientation_l2.weight = -1.0
-
-        # Commands
-        self.commands.base_velocity.ranges.lin_vel_x = (-0.6, 0.6)
-        self.commands.base_velocity.ranges.lin_vel_y = (-0.3, 0.3)
-        self.commands.base_velocity.ranges.ang_vel_z = (-0.3, 0.3)
 
         # terminations
         # self.terminations.base_contact.params["sensor_cfg"].body_names = "torso_link"

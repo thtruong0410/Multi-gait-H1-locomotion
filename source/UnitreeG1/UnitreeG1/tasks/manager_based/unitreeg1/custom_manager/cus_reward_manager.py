@@ -11,8 +11,7 @@ class CusRewardManager(RewardManager):
         self.command_sums = {
             name: torch.zeros(env.num_envs, dtype=torch.float, device=self.device, requires_grad=False)
             for name in
-            list(self._term_names) + ["lin_vel_raw", "ang_vel_raw", "lin_vel_residual", "ang_vel_residual",
-                                               "ep_timesteps"]}
+            list(self._term_names)}
         self._reward_buf_pos = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
         self._reward_buf_neg = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
         self.env = env
@@ -50,13 +49,13 @@ class CusRewardManager(RewardManager):
             # Update current reward for this step.
             self._step_reward[:, term_idx] = value / dt
 
-            asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
-            asset: RigidObject = self.env.scene[asset_cfg.name]
+            # asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+            # asset: RigidObject = self.env.scene[asset_cfg.name]
 
-            self.command_sums["lin_vel_raw"] += asset.data.root_lin_vel_b[:, 0]
-            self.command_sums["ang_vel_raw"] += asset.data.root_lin_vel_b[:, 2]
-            self.command_sums["lin_vel_residual"] += (self.env.command_manager.get_command("base_velocity")[:, 0] - asset.data.root_lin_vel_b[:, 0]) ** 2
-            self.command_sums["ang_vel_residual"] += (self.env.command_manager.get_command("base_velocity")[:, 2] - asset.data.root_lin_vel_b[:, 2]) ** 2
-            self.command_sums["ep_timesteps"] += 1
+            # self.command_sums["lin_vel_raw"] += asset.data.root_lin_vel_b[:, 0]
+            # self.command_sums["ang_vel_raw"] += asset.data.root_lin_vel_b[:, 2]
+            # self.command_sums["lin_vel_residual"] += (self.env.command_manager.get_command("base_velocity")[:, 0] - asset.data.root_lin_vel_b[:, 0]) ** 2
+            # self.command_sums["ang_vel_residual"] += (self.env.command_manager.get_command("base_velocity")[:, 2] - asset.data.root_lin_vel_b[:, 2]) ** 2
+            # self.command_sums["ep_timesteps"] += 1
 
         return self._reward_buf

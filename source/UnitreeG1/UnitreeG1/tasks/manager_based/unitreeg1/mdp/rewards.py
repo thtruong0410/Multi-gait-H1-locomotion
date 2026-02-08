@@ -316,7 +316,7 @@ def foot_clearance_cmd_linear(
     foot = env.command_manager.get_foot_indices.to(device)
     phases = 1 - torch.abs(1.0 - torch.clip((torch.tensor(foot, dtype=torch.float32, device=device) * 2.0) - 1.0,0.0, 1.0) * 2.0)
     foot_height = (asset.data.body_pos_w[:, asset_cfg.body_ids, 2]).view(env.num_envs, -1)  # (num_envs, num_feet)
-    base_clearance = env.command_manager.get_command(command_name)[:, 6].unsqueeze(1) * phases + 0.07
+    base_clearance = env.command_manager.get_command(command_name)[:, 6].unsqueeze(1) * phases # + 0.07
     if sensor_cfg is not None:
         sensor: RayCaster = env.scene[sensor_cfg.name]
         terrain_height = torch.mean(sensor.data.ray_hits_w[..., 2], dim=1).unsqueeze(1)
@@ -328,7 +328,7 @@ def foot_clearance_cmd_linear(
     desired_contacts = env.command_manager.get_desired_contact_states.to(device)
     rew_foot_clearance = torch.square(torch.relu(target_height - foot_height)) * (1 - desired_contacts)
 
-    return torch.sum(rew_foot_clearance, dim=1)
+    return torch.sum(rew_foot_clearance, dim=1).clip(max=0.1)
 
 def orientation_control(
     env: ManagerBasedRLEnv,
@@ -375,10 +375,13 @@ def base_height(
     else :
         jump_height_target = env.command_manager.get_command(command_name)[:, 7] + target_height
 
-    # standing_env_ids = env.command_manager.get_standing_env_ids.to(env.device)
     body_height = asset.data.root_pos_w[:, 2]
     # print("body_height: ", body_height[0])
     # print("jump_height_target: ", jump_height_target)
+    reward = torch.square(body_height - jump_height_target)
+
+    # standing_env_ids = env.command_manager.is_standing_env.to(env.device)
+    # reward[standing_env_ids] *= 3 
     return torch.square(body_height - jump_height_target)
 
 def no_fly(
@@ -423,14 +426,26 @@ def hopping_symmetry(
     feet_pos_w = asset.data.body_pos_w[:, asset_cfg.body_ids, :]
     feet_pos_rel_w = feet_pos_w - asset.data.root_pos_w.unsqueeze(1)  # (N, F, 3)
 
-    # >>> FIX: expand root quat to (N, F, 4) so quat_apply_inverse works
-    root_quat = asset.data.root_quat_w.unsqueeze(1).expand(-1, feet_pos_rel_w.shape[1], -1)  # (N, F, 4)
+    # --- yaw-only quat like your first snippet ---
+    # Assumption: quat format is (x, y, z, w) like Isaac/torch utils typically
+    root_quat = asset.data.root_quat_w  # (N, 4)
 
-    feet_pos_b = quat_apply_inverse(root_quat, feet_pos_rel_w)  # (N, F, 3)
+    root_quat_yaw = root_quat.clone()
+    root_quat_yaw[:, 0:2] = 0.0  # zero x,y -> remove roll/pitch, keep yaw (z,w)
+    root_quat_yaw = root_quat_yaw / torch.clamp(
+        torch.norm(root_quat_yaw, dim=-1, keepdim=True), min=1e-9
+    )  # normalize
+
+    root_quat_yaw = root_quat_yaw.unsqueeze(1).expand(-1, feet_pos_rel_w.shape[1], -1)  # (N,F,4)
+
+    feet_pos_b_h = quat_apply_inverse(root_quat_yaw, feet_pos_rel_w)  # (N, F, 3)
 
     # assume 2 feet: index 0 and 1
-    penalize = torch.abs(feet_pos_b[:, 0, 0] - feet_pos_b[:, 1, 0]) + torch.abs(feet_pos_b[:, 0, 2] - feet_pos_b[:, 1, 2])
+    penalize = (
+        torch.abs(feet_pos_b_h[:, 0, 0] - feet_pos_b_h[:, 1, 0]) +
+        torch.abs(feet_pos_b_h[:, 0, 2] - feet_pos_b_h[:, 1, 2])
+    )
 
-    # zero out in walking
     penalize = torch.where(walking_mask, torch.zeros_like(penalize), penalize)
     return penalize
+
