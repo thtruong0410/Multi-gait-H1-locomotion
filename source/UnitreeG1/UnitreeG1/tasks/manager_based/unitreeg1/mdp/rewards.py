@@ -316,7 +316,7 @@ def foot_clearance_cmd_linear(
     foot = env.command_manager.get_foot_indices.to(device)
     phases = 1 - torch.abs(1.0 - torch.clip((torch.tensor(foot, dtype=torch.float32, device=device) * 2.0) - 1.0,0.0, 1.0) * 2.0)
     foot_height = (asset.data.body_pos_w[:, asset_cfg.body_ids, 2]).view(env.num_envs, -1)  # (num_envs, num_feet)
-    base_clearance = env.command_manager.get_command(command_name)[:, 6].unsqueeze(1) * phases + 0.03
+    base_clearance = env.command_manager.get_command(command_name)[:, 6].unsqueeze(1) * phases + 0.00
     if sensor_cfg is not None:
         sensor: RayCaster = env.scene[sensor_cfg.name]
         terrain_height = torch.mean(sensor.data.ray_hits_w[..., 2], dim=1).unsqueeze(1)

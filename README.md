@@ -85,12 +85,7 @@ The `duration` (Command `[5]`) controls the split between Stance and Swing. In o
 
 *The following demonstrations showcase the policy running in Isaac Lab.*
 
-| **Gait Mode** | **Demo** | **Description** |
-| :--- | :--- | :--- |
-| **Walking** | <img src="assets/walk.gif" width="300" /> | **Cmd:** `offset=0.5`, `freq=1.5Hz`. <br> Standard anti-phase locomotion. |
-| **Jumping** | <img src="assets/jump.gif" width="300" /> | **Cmd:** `offset=0.0`, `freq=2.0Hz`. <br> Synchronized double-leg jumping. |
-
----
+Link demo: [here](https://www.canva.com/design/DAHAy2zprkQ/RsNm2OBLlsDOltMOcWSWXA/edit?utm_content=DAHAy2zprkQ&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton)
 
 ## 5. Reward Function Architecture
 
@@ -134,12 +129,10 @@ Train
 ```
 python scripts/rsl_rl/train.py --task=Template-Unitreeg1-v0 --num_envs=4096 --headless
 ```
-Play/Evaluate (if available)
+Play
+
+Modify the command parameters in lines 165–174 of play.py to test different behaviors, based on the ranges listed in Section 2.
 ```
-python scripts/rsl_rl/play.py --task=Template-Unitreeg1-v0 --num_envs=1
+python scripts/rsl_rl/play.py --task=Template-Unitreeg1-v0 --num_envs=1 --checkpoint=model_25400.pt
 ```
 
-## REFERENCES
-- Walk These Ways (multi-behavior locomotion, gait timing control)
-- Humanoid multi-gait locomotion paper (command-conditioned gait modulation)
-- NVIDIA Isaac Lab v2.1.0 documentation
