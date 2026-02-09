@@ -4,11 +4,11 @@ from dataclasses import MISSING
 from isaaclab.utils import configclass
 
 from . import UniformVelocityCommandCfg
-from .mob_commands import MoBCommand, MoBCommandPlay
+from .mob_commands import MoBCommand
 
 @configclass
 class MoBCommandCfg(UniformVelocityCommandCfg):
-    class_type: type = MoBCommand | MoBCommandPlay
+    class_type: type = MoBCommand
     seed: int = 100
     
     @configclass

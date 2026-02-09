@@ -1,135 +1,145 @@
-# Template for Isaac Lab Projects
+# Multi-Gait Locomotion for Unitree H1 in Isaac Lab
 
-## Overview
 
-This project/repository serves as a template for building projects or extensions based on Isaac Lab.
-It allows you to develop in an isolated environment, outside of the core Isaac Lab repository.
+> *Framework: NVIDIA Isaac Lab v2.1.0* 
+> *Robot: Unitree H1 Humanoid*
 
-**Key Features:**
+## 1. Overview
 
-- `Isolation` Work outside the core Isaac Lab repository, ensuring that your development efforts remain self-contained.
-- `Flexibility` This template is set up to allow your code to be run as an extension in Omniverse.
+This repository implements a versatile, command-conditioned Reinforcement Learning (RL) controller for the **Unitree H1** humanoid robot.
 
-**Keywords:** extension, template, isaaclab
+Building upon the **"Multiplicity of Behavior" (MoB)** paradigm introduced in and the **Whole-Body Control** architecture of *HUGWBC*, this project extends the standard locomotion interface. Instead of a simple 3D velocity command, we utilize a **10D Command Interface** that decouples **Task** (velocity goals) from **Behavior** (gait style and posture)
 
-## Installation
+### Key Capabilities
+* **Dynamic Gait Switching:** Seamlessly transition between **Walking** (anti-phase) and **Jumping** (in-phase) in real-time by modulating timing offsets.
+* **10D Command Space:** Direct control over cadence, stance duration, swing height, and upper-body posture (pitch/waist/height).
+* **Isaac Lab Native:** Built on NVIDIA's latest modular RL framework (v2.1.0) for improved scalability, sensor integration, and sim-to-real transfer.
 
-- Install Isaac Lab by following the [installation guide](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html).
-  We recommend using the conda installation as it simplifies calling Python scripts from the terminal.
+---
 
-- Clone or copy this project/repository separately from the Isaac Lab installation (i.e. outside the `IsaacLab` directory):
+## 2. The 10D Command Interface
 
-- Using a python interpreter that has Isaac Lab installed, install the library in editable mode using:
+The policy input is a vector of shape `(num_envs, 10)`. The commands are categorized into Task goals (Movement) and Behavior modifiers (Gait & Posture). This extended command space allows for versatile locomotion behaviors.
 
-    ```bash
-    # use 'PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
-    python -m pip install -e source/UnitreeG1
+| Index | Parameter | Description | Range / Unit | Functionality |
+| :--- | :--- | :--- | :--- | :--- |
+| **Task** | | | | *Target Goals* |
+| `0` | `lin_vel_x` | Forward Velocity | $\pm 2.0$ m/s | Base movement speed ($v_x$). |
+| `1` | `lin_vel_y` | Lateral Velocity | $\pm 0.6$ m/s | Side-stepping speed ($v_y$). |
+| `2` | `ang_vel_z` | Yaw Rate | $\pm 1.0$ rad/s | Turning rate ($\omega_z$). |
+| **Gait** | | | | *Cycle Modulation* |
+| `3` | `frequency` | Cadence | $1.5 - 3.5$ Hz | Controls the speed of the gait cycle ($f^{cmd}$). |
+| `4` | `phase_offset` | **Timing Offset** | $0.0$ or $0.5$ | Determines the gait type (Walk vs Jump). |
+| `5` | `duration` | Stance Duration | $0.5$ | Ratio of stance phase vs swing phase ($\phi_{stance}$). |
+| `6` | `foot_swing` | Swing Height | $0.05 - 0.2$ m | Target peak height of the foot in air ($h_z^{f,cmd}$). |
+| **Posture** | | | | *Whole-Body Control* |
+| `7` | `body_height` | Base Height | $\pm 0.1$ m | Vertical CoM offset (Crouch vs Stand) ($h$). |
+| `8` | `body_pitch` | Torso Pitch | $\pm 0.2$ rad | Leaning forward/backward ($p$). |
+| `9` | `waist_yaw` | Waist Joint | $\pm 0.3$ rad | Waist orientation offset ($w$). |
 
-- Verify that the extension is correctly installed by:
+---
 
-    - Listing the available tasks:
+## 3. Gait Mechanism: Timing & Phase Scheduler
 
-        Note: It the task name changes, it may be necessary to update the search pattern `"Template-"`
-        (in the `scripts/list_envs.py` file) so that it can be listed.
+The core logic for multi-gait locomotion relies on a **Phase-Based Scheduler**. We maintain a global phase variable $\phi(t)$ that loops continuously from $0 \to 1$ driven by the command frequency.
 
-        ```bash
-        # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
-        python scripts/list_envs.py
-        ```
+### 3.1. Phase Calculation
+The phase for each foot is calculated using the global phase and the commanded offset:
+$$
+\phi_{left} = \phi_{global}
+$$
+$$
+\phi_{right} = (\phi_{global} + \text{phase\_offset}) \pmod 1
+$$
 
-    - Running a task:
+### 3.2. Understanding Timing Offset (Command `[4]`)
+The `phase_offset` determines the synchronization between the left and right legs[cite: 1100, 166].
 
-        ```bash
-        # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
-        python scripts/<RL_LIBRARY>/train.py --task=<TASK_NAME>
-        ```
+#### **Mode A: Walking (Anti-Phase)**
+* **Command:** `phase_offset = 0.5`
+* **Behavior:** The legs are $180^\circ$ out of phase. When the Left foot starts a cycle ($0.0$), the Right foot is exactly halfway ($0.5$).
+* **Visual Schedule:**
+    ```text
+    Time:   0%    25%   50%   75%   100%
+    Left:   [STANCE----][SWING-----]
+    Right:  [SWING-----][STANCE----]
+    ```
 
-    - Running a task with dummy agents:
+#### **Mode B: Jumping (In-Phase)**
+* **Command:** `phase_offset = 0.0`
+* **Behavior:** The legs are synchronized. Both feet enter stance and swing phases simultaneously.
+* **Visual Schedule:**
+    ```text
+    Time:   0%    25%   50%   75%   100%
+    Left:   [STANCE----][SWING-----]
+    Right:  [STANCE----][SWING-----]
+    ```
 
-        These include dummy agents that output zero or random agents. They are useful to ensure that the environments are configured correctly.
+### 3.3. Stance Duration & Smoothing
+The `duration` (Command `[5]`) controls the split between Stance and Swing. In our implementation, this value is currently **fixed to 0.5**, resulting in an equal stance/swing ratio. We apply a **Von Mises / Normal-CDF smoothing** function at the phase transitions to generate *soft contact targets* in the range $[0, 1]$. This encourages the RL policy to learn smooth contact transitions instead of abrupt impacts.
 
-        - Zero-action agent
 
-            ```bash
-            # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
-            python scripts/zero_agent.py --task=<TASK_NAME>
-            ```
-        - Random-action agent
+---
 
-            ```bash
-            # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
-            python scripts/random_agent.py --task=<TASK_NAME>
-            ```
+## 4. Visual Demonstrations
 
-### Set up IDE (Optional)
+*The following demonstrations showcase the policy running in Isaac Lab.*
 
-To setup the IDE, please follow these instructions:
+| **Gait Mode** | **Demo** | **Description** |
+| :--- | :--- | :--- |
+| **Walking** | <img src="assets/walk.gif" width="300" /> | **Cmd:** `offset=0.5`, `freq=1.5Hz`. <br> Standard anti-phase locomotion. |
+| **Jumping** | <img src="assets/jump.gif" width="300" /> | **Cmd:** `offset=0.0`, `freq=2.0Hz`. <br> Synchronized double-leg jumping. |
 
-- Run VSCode Tasks, by pressing `Ctrl+Shift+P`, selecting `Tasks: Run Task` and running the `setup_python_env` in the drop down menu.
-  When running this task, you will be prompted to add the absolute path to your Isaac Sim installation.
+---
 
-If everything executes correctly, it should create a file .python.env in the `.vscode` directory.
-The file contains the python paths to all the extensions provided by Isaac Sim and Omniverse.
-This helps in indexing all the python modules for intelligent suggestions while writing code.
+## 5. Reward Function Architecture
 
-### Setup as Omniverse Extension (Optional)
+The reward function is designed to enforce the commanded behavior while maintaining stability. It is a weighted sum of **Task**, **Gait**, and **Regularization** terms.
 
-We provide an example UI extension that will load upon enabling your extension defined in `source/UnitreeG1/UnitreeG1/ui_extension_example.py`.
+### Primary Rewards
+* **Velocity Tracking:** Penalties for deviations from target $v_x, v_y, \omega_z$.
+* **Gait Enforcement (Phase-Dependent):**
+    * `walking_jumping`: Mode-dependent contact-pattern penalty to prevent degenerate gaits.
+      * Walking mode (`cmd[4] = 0.5`): Penalizes 0-contact and 2-contact states, encourages single support (1 foot in contact)
+      * Jumping mode (`cmd[4] = 0.0`): Penalizes single-contact states, prevents one-leg hopping and encourages synchronized contacts (both stance or both swing)
+      * Disabled when commanded velocity is near zero.
+    * `tracking_contacts_shaped_force`: Penalizes ground reaction forces when the scheduler dictates **Swing Phase** (must lift foot).
+    * `tracking_contacts_shaped_vel`: Penalizes foot velocity when the scheduler dictates **Stance Phase** (no sliding).
+    * `foot_clearance_cmd_linear`: Penalizes insufficient swing-foot clearance relative to the commanded swing height (cmd[6]).
+* **Posture Control:**
+    * `orientation_control`: Tracks the desired body pitch (`cmd[8]`).
+    * `base_height`: Maintains the commanded body height (`cmd[7]`).
+    * `waist_control`: Tracks the commanded waist joint position (`cmd[9]`) using an L2 penalty on waist joint angle error.
 
-To enable your extension, follow these steps:
+### Regularization
+* **Jumping Symmetry:** A specific penalty used when `phase_offset ≈ 0` to enforce left/right symmetry and prevent "galloping" artifacts during jumps.
+* **Joint Constraints:** Penalties for joint acceleration, velocity limits, and awkward arm poses (`joint_deviation_arms`).
 
-1. **Add the search path of this project/repository** to the extension manager:
-    - Navigate to the extension manager using `Window` -> `Extensions`.
-    - Click on the **Hamburger Icon**, then go to `Settings`.
-    - In the `Extension Search Paths`, enter the absolute path to the `source` directory of this project/repository.
-    - If not already present, in the `Extension Search Paths`, enter the path that leads to Isaac Lab's extension directory directory (`IsaacLab/source`)
-    - Click on the **Hamburger Icon**, then click `Refresh`.
+## 6. INSTALLATION (ISAAC LAB v2.1.0)
+Install Isaac Lab (official guide)
+https://isaac-sim.github.io/IsaacLab/v2.1.0/source/setup/installation/pip_installation.html
 
-2. **Search and enable your extension**:
-    - Find your extension under the `Third Party` category.
-    - Toggle it to enable your extension.
+Clone/copy this repository outside the IsaacLab core directory.
 
-## Code formatting
+Install as editable extension
+python -m pip install -e source/UnitreeG1
 
-We have a pre-commit template to automatically format your code.
-To install pre-commit:
-
-```bash
-pip install pre-commit
+## USAGE
+List available tasks
+```
+python scripts/list_envs.py
 ```
 
-Then you can run pre-commit with:
-
-```bash
-pre-commit run --all-files
+Train
+```
+python scripts/rsl_rl/train.py --task=Template-Unitreeg1-v0 --num_envs=4096 --headless
+```
+Play/Evaluate (if available)
+```
+python scripts/rsl_rl/play.py --task=Template-Unitreeg1-v0 --num_envs=1
 ```
 
-## Troubleshooting
-
-### Pylance Missing Indexing of Extensions
-
-In some VsCode versions, the indexing of part of the extensions is missing.
-In this case, add the path to your extension in `.vscode/settings.json` under the key `"python.analysis.extraPaths"`.
-
-```json
-{
-    "python.analysis.extraPaths": [
-        "<path-to-ext-repo>/source/UnitreeG1"
-    ]
-}
-```
-
-### Pylance Crash
-
-If you encounter a crash in `pylance`, it is probable that too many files are indexed and you run out of memory.
-A possible solution is to exclude some of omniverse packages that are not used in your project.
-To do so, modify `.vscode/settings.json` and comment out packages under the key `"python.analysis.extraPaths"`
-Some examples of packages that can likely be excluded are:
-
-```json
-"<path-to-isaac-sim>/extscache/omni.anim.*"         // Animation packages
-"<path-to-isaac-sim>/extscache/omni.kit.*"          // Kit UI tools
-"<path-to-isaac-sim>/extscache/omni.graph.*"        // Graph UI tools
-"<path-to-isaac-sim>/extscache/omni.services.*"     // Services tools
-...
-```
+## REFERENCES
+- Walk These Ways (multi-behavior locomotion, gait timing control)
+- Humanoid multi-gait locomotion paper (command-conditioned gait modulation)
+- NVIDIA Isaac Lab v2.1.0 documentation

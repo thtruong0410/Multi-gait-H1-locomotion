@@ -35,7 +35,7 @@ class MoBCommand(UniformVelocityCommand):
         self.env = env
         self.commands = torch.zeros(self.num_envs, 10, device= self.device)
 
-        self.category_names = ['walking', 'hopping']        
+        self.category_names = ['walking', 'jumping']        
         self.curricula = []
         for category in self.category_names:
             self.curricula += [RewardThresholdCurriculum(seed=self.cfg.seed,
@@ -157,9 +157,9 @@ class MoBCommand(UniformVelocityCommand):
         #                                               random_env_floats < probability_per_category * (i + 1))] for i in
         #                     range(len(self.category_names))]
 
-        hopping_mask = self.commands[env_ids, 4] == 0
+        jumping_mask = self.commands[env_ids, 4] == 0
         walking_mask = self.commands[env_ids, 4] == 0.5
-        category_env_ids = [env_ids[walking_mask], env_ids[hopping_mask]]
+        category_env_ids = [env_ids[walking_mask], env_ids[jumping_mask]]
         # sample from new category curricula
         for i, (category, env_ids_in_category, curriculum) in enumerate(
                 zip(self.category_names, category_env_ids, self.curricula)):
@@ -217,9 +217,9 @@ class MoBCommand(UniformVelocityCommand):
         high_frequency_env_mask = self.commands[env_ids, 3] > 2.5
         self.commands[env_ids[high_frequency_env_mask], 6] = self.commands[env_ids[high_frequency_env_mask], 6].clip(max=0.20)
 
-        hopping_mask = self.commands[env_ids, 4] == 0
+        jumping_mask = self.commands[env_ids, 4] == 0
         walking_mask = self.commands[env_ids, 4] == 0.5
-        hopping_env_ids = env_ids[hopping_mask]
+        jumping_env_ids = env_ids[jumping_mask]
         walking_env_ids = env_ids[walking_mask]
 
         # Body height command
@@ -241,9 +241,9 @@ class MoBCommand(UniformVelocityCommand):
         self.commands[env_ids, 9] = torch_rand_float(self.cfg.ranges.waist_roll[0], self.cfg.ranges.waist_roll[1], (len(env_ids), 1), device=self.device).squeeze(1)
         self.commands[env_ids[high_speed_env_mask], 9] = self.commands[env_ids[high_speed_env_mask], 9].clip(min=-0.15, max=0.15)
 
-        # clip commands for hopping envs
-        self.commands[hopping_env_ids, 6] = self.commands[hopping_env_ids, 6].clip(max=0.2)
-        self.commands[hopping_env_ids, 8] = self.commands[hopping_env_ids, 8].clip(max=0.3)
+        # clip commands for jumping envs
+        self.commands[jumping_env_ids, 6] = self.commands[jumping_env_ids, 6].clip(max=0.2)
+        self.commands[jumping_env_ids, 8] = self.commands[jumping_env_ids, 8].clip(max=0.3)
         
         # print("command: ", self.commands[0:3, :])
         # reset command sums

@@ -316,7 +316,7 @@ def foot_clearance_cmd_linear(
     foot = env.command_manager.get_foot_indices.to(device)
     phases = 1 - torch.abs(1.0 - torch.clip((torch.tensor(foot, dtype=torch.float32, device=device) * 2.0) - 1.0,0.0, 1.0) * 2.0)
     foot_height = (asset.data.body_pos_w[:, asset_cfg.body_ids, 2]).view(env.num_envs, -1)  # (num_envs, num_feet)
-    base_clearance = env.command_manager.get_command(command_name)[:, 6].unsqueeze(1) * phases + 0.07
+    base_clearance = env.command_manager.get_command(command_name)[:, 6].unsqueeze(1) * phases + 0.03
     if sensor_cfg is not None:
         sensor: RayCaster = env.scene[sensor_cfg.name]
         terrain_height = torch.mean(sensor.data.ray_hits_w[..., 2], dim=1).unsqueeze(1)
@@ -327,7 +327,7 @@ def foot_clearance_cmd_linear(
     # contact state cũng cần đưa về device
     desired_contacts = env.command_manager.get_desired_contact_states.to(device)
     # print("desired_contacts: ", desired_contacts[0])
-    diff = torch.relu(target_height - foot_height)
+    diff = target_height - foot_height
     # print("foot height diff: ",  diff[0])
 
     rew_foot_clearance = torch.square(diff) * (1 - desired_contacts)
@@ -388,7 +388,35 @@ def base_height(
     # reward[standing_env_ids] *= 3 
     return torch.square(body_height - jump_height_target)
 
-def no_fly(
+# def no_fly(
+#     env: ManagerBasedRLEnv,
+#     command_name: str,
+#     sensor_cfg: SceneEntityCfg,
+#     threshold: float = 0.1,
+# ) -> torch.Tensor:
+#     cmd = env.command_manager.get_command(command_name)  # (N, cmd_dim)
+
+#     zero_cmd_mask = (torch.norm(cmd[:, :2], dim=1) < 0.1) & (torch.abs(cmd[:, 2]) < 0.1)
+#     walking_mask = cmd[:, 4] == 0.5
+#     jumping_mask = cmd[:, 4] == 0.0
+#     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+#     contacts = contact_sensor.data.net_forces_w[:, sensor_cfg.body_ids, 2] > threshold  # bool (N, num_feet)
+
+#     n_contacts = contacts.float().sum(dim=1)  # (N,)
+
+#     none_contact = n_contacts == 0
+#     double_contact = n_contacts == 2
+#     same_contact = none_contact | double_contact
+#     single_contact = n_contacts == 1
+
+#     same_contact[walking_mask] = 0
+#     single_contact[jumping_mask] = 0
+#     same_contact[zero_cmd_mask] = 0
+#     single_contact[zero_cmd_mask] = 0
+
+#     return same_contact.float() + single_contact.float()  # (N,)
+
+def walking_jumping(
     env: ManagerBasedRLEnv,
     command_name: str,
     sensor_cfg: SceneEntityCfg,
@@ -398,72 +426,34 @@ def no_fly(
 
     zero_cmd_mask = (torch.norm(cmd[:, :2], dim=1) < 0.1) & (torch.abs(cmd[:, 2]) < 0.1)
     walking_mask = cmd[:, 4] == 0.5
-    hopping_mask = cmd[:, 4] == 0.0
+    jumping_mask = cmd[:, 4] == 0.0
+
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
-    contacts = contact_sensor.data.net_forces_w[:, sensor_cfg.body_ids, 2] > threshold  # bool (N, num_feet)
+    contacts = contact_sensor.data.net_forces_w[:, sensor_cfg.body_ids, 2] > threshold  # (N, 2)
 
     n_contacts = contacts.float().sum(dim=1)  # (N,)
 
     none_contact = n_contacts == 0
-    double_contact = n_contacts == 2
-    same_contact = none_contact | double_contact
     single_contact = n_contacts == 1
+    double_contact = n_contacts == 2
 
-    same_contact[walking_mask] = 0
-    single_contact[hopping_mask] = 0
-    same_contact[zero_cmd_mask] = 0
-    single_contact[zero_cmd_mask] = 0
+    # WALKING: phạt 0 hoặc 2 contact (muốn 1 contact)
+    walking_penalty = none_contact | double_contact
 
-    return same_contact.float() + single_contact.float()  # (N,)
+    # HOPPING: phạt 1 contact (tránh nhảy lò cò)
+    jumping_penalty = single_contact
 
-# def no_fly_same_contact(
-#     env: ManagerBasedRLEnv,
-#     command_name: str,
-#     sensor_cfg: SceneEntityCfg,
-#     threshold: float = 0.1,
-# ) -> torch.Tensor:
-#     cmd = env.command_manager.get_command(command_name)
+    # chỉ apply đúng mode
+    walking_penalty[jumping_mask] = 0
+    jumping_penalty[walking_mask] = 0
 
-#     zero_cmd_mask = (torch.norm(cmd[:, :2], dim=1) < 0.1) & (torch.abs(cmd[:, 2]) < 0.1)
-#     walking_mask = cmd[:, 4] == 0.5
+    # tắt khi cmd gần 0
+    walking_penalty[zero_cmd_mask] = 0
+    jumping_penalty[zero_cmd_mask] = 0
 
-#     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
-#     contacts = contact_sensor.data.net_forces_w[:, sensor_cfg.body_ids, 2] > threshold
-#     n_contacts = contacts.float().sum(dim=1)
-
-#     same_contact = (n_contacts == 0) | (n_contacts == 2)
-
-#     # disable in walking + when cmd ~ 0
-#     same_contact[walking_mask] = False
-#     same_contact[zero_cmd_mask] = False
-
-#     return same_contact.float()
-
-
-# def no_fly_single_contact(
-#     env: ManagerBasedRLEnv,
-#     command_name: str,
-#     sensor_cfg: SceneEntityCfg,
-#     threshold: float = 0.1,
-# ) -> torch.Tensor:
-#     cmd = env.command_manager.get_command(command_name)
-
-#     zero_cmd_mask = (torch.norm(cmd[:, :2], dim=1) < 0.1) & (torch.abs(cmd[:, 2]) < 0.1)
-#     hopping_mask = cmd[:, 4] == 0.0
-
-#     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
-#     contacts = contact_sensor.data.net_forces_w[:, sensor_cfg.body_ids, 2] > threshold
-#     n_contacts = contacts.float().sum(dim=1)
-
-#     single_contact = n_contacts == 1
-
-#     # disable in hopping + when cmd ~ 0
-#     single_contact[hopping_mask] = False
-#     single_contact[zero_cmd_mask] = False
-
-#     return single_contact.float()
+    return walking_penalty.float() + jumping_penalty.float()
     
-def hopping_symmetry(
+def jumping_symmetry(
     env: ManagerBasedRLEnv,
     command_name: str = "base_velocity",
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),

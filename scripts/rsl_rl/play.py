@@ -162,13 +162,13 @@ def main():
         # run everything in inference mode
         with torch.inference_mode():
 
-            env.env.env.command_manager.get_command(command_name)[:, 0] = 1.0 # lin_x
+            env.env.env.command_manager.get_command(command_name)[:, 0] = 0.6 # lin_x
             env.env.env.command_manager.get_command(command_name)[:, 1] = 0 # lin_y 
             env.env.env.command_manager.get_command(command_name)[:, 2] = 0 # ang z 
-            env.env.env.command_manager.get_command(command_name)[:, 3] = 1.5 # frequency 
-            env.env.env.command_manager.get_command(command_name)[:, 4] = 0.5 # phase 
+            env.env.env.command_manager.get_command(command_name)[:, 3] = 2 # frequency 
+            env.env.env.command_manager.get_command(command_name)[:, 4] = 0.0 # phase 
             env.env.env.command_manager.get_command(command_name)[:, 5] = 0.5 # duration
-            env.env.env.command_manager.get_command(command_name)[:, 6] = 0.3 # foot swing 
+            env.env.env.command_manager.get_command(command_name)[:, 6] = 0.1 # foot swing 
             env.env.env.command_manager.get_command(command_name)[:, 7] = -0.0 # body height 
             env.env.env.command_manager.get_command(command_name)[:, 8] = 0.2 # body pitch 
             env.env.env.command_manager.get_command(command_name)[:, 9] = 0.0 # waist rool

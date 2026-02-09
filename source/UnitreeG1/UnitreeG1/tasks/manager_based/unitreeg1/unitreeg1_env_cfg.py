@@ -19,7 +19,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 from . import mdp
-from .mdp.mob_commands import MoBCommand, MoBCommandPlay
+from .mdp.mob_commands import MoBCommand
 
 ##
 # Pre-defined configs
@@ -81,8 +81,8 @@ class CommandsCfg:
             lin_vel_x=(-0.6, 0.6),
             lin_vel_y=(-0.6, 0.6),
             ang_vel_z=(-0.6, 0.6),
-            gait_frequency=(1.5, 3.5),
-            foot_swing_height=(0.1, 0.35),
+            gait_frequency=(1.5, 2.5),
+            foot_swing_height=(0.1, 0.2),
             body_height=(-0.2, 0.0),
             body_pitch=(0.0, 0.2),
             waist_roll=(-0.0, 0.0),
@@ -294,13 +294,13 @@ class RewardsCfg:
     #     },
     # )
 
-    no_fly = RewTerm(
-        func=mdp.no_fly,
-        weight=-0.25,
+    walking_jumping = RewTerm(
+        func=mdp.walking_jumping,
+        weight=-0.5,
             params={
             "command_name": "base_velocity",
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle.*"),
-            "threshold": 0.1,
+            "threshold": 1,
         }    
     ) # 
 
@@ -439,8 +439,8 @@ class RewardsCfg:
     #     },
     # )
 
-    hopping_symmetry = RewTerm(
-        func=mdp.hopping_symmetry,
+    jumping_symmetry = RewTerm(
+        func=mdp.jumping_symmetry,
         weight=-5.0,   # penalty -> weight âm
         params={
             "command_name": "base_velocity",
