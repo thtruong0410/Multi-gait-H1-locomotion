@@ -45,15 +45,17 @@ The core logic for multi-gait locomotion relies on a **Phase-Based Scheduler**. 
 
 ### 3.1. Phase Calculation
 The phase for each foot is calculated using the global phase and the commanded offset:
+
 $$
 \phi_{left} = \phi_{global}
 $$
+
 $$
-\phi_{right} = (\phi_{global} + \text{phase\_offset}) \pmod 1
+\phi_{right} = (\phi_{global} + \text{phase\_offset}) \pmod{1}
 $$
 
 ### 3.2. Understanding Timing Offset (Command `[4]`)
-The `phase_offset` determines the synchronization between the left and right legs[cite: 1100, 166].
+The `phase_offset` determines the synchronization between the left and right legs.
 
 #### **Mode A: Walking (Anti-Phase)**
 * **Command:** `phase_offset = 0.5`
