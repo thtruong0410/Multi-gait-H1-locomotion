@@ -52,7 +52,7 @@ $$
 $$
 
 $$
-\phi_{right} = (\phi_{global} + \text{phase\_offset}) \pmod{1}
+\phi_{right} = (\phi_{global} + \text{phase offset}) \pmod{1}
 $$
 
 ### 3.2. Understanding Timing Offset (Command `[4]`)
