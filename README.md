@@ -44,15 +44,16 @@ The policy input is a vector of shape `(num_envs, 10)`. The commands are categor
 The core logic for multi-gait locomotion relies on a **Phase-Based Scheduler**. We maintain a global phase variable $\phi(t)$ that loops continuously from $0 \to 1$ driven by the command frequency.
 
 ### 3.1. Phase Calculation
+
 The phase for each foot is calculated using the global phase and the commanded offset:
 
-$$
+\[
 \phi_{left} = \phi_{global}
-$$
+\]
 
-$$
+\[
 \phi_{right} = (\phi_{global} + \text{phase\_offset}) \pmod{1}
-$$
+\]
 
 ### 3.2. Understanding Timing Offset (Command `[4]`)
 The `phase_offset` determines the synchronization between the left and right legs.
